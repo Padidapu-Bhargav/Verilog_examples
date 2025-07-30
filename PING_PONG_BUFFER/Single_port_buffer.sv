@@ -19,7 +19,6 @@
 //     input   logic                                   rd_en
 // );
 
-// This is the attribute used in QUARTUS to invoke BRAMS
 // (* ramstyle = "M20K" *) logic [dw-1:0] bram [buffer_depth];
 
 
