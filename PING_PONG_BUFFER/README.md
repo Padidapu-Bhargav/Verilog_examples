@@ -1,29 +1,105 @@
-# 📦 Single Port Buffer Module (Verilog)
-- **Single_port_buffer_rd_address** ==> this module gives a particular write address and a particular read_address and also enable
-- **Single_port_buffer_rd_enable**  ==> this module gives a particular write address and gives rd_enable signal and based on this rd_address gets updated on its own and gives the data
+# 🧠 PING_PONG & Single Port Buffer Modules (Verilog)
 
-This module implements a **synchronous single-port memory buffer** in Verilog, designed for efficient use of **M20K block RAMs** in Intel FPGAs (e.g., Agilex, Stratix, Cyclone) using Quartus.
+This repository contains a **modular RTL design** for implementing **ping-pong buffering** using **single-port block RAMs (M20Ks)** in Intel FPGA devices like Agilex, Stratix, etc.
+
+It includes:
+
+- ✅ Two flexible single-port RAM modules
+- 🌀 A `PING_PONG` top-level controller to toggle between two buffers
+- 🧩 Targeted for **efficient M20K usage** in **Intel Quartus**
+
+---
+
+## 📦 Module Overview
+
+| Module Name                    | Description                                                                |
+|--------------------------------|----------------------------------------------------------------------------|
+| `PING_PONG`                    | Top-level buffer switcher using two `Single_port_buffer` RAMs              |
+| `Single_port_buffer_rd_address`| Single-port RAM with external read address and enable control              |
+| `Single_port_buffer_rd_enable` | Single-port RAM where read address auto-increments based on `rd_en`        |
 
 ---
 
-## 🚀 Features
+## 🔄 What is Ping-Pong Buffering?
 
-* Two variants of the single-port buffer are included:
+Ping-pong buffering is a **double-buffering technique** that allows one buffer to be **written to**, while the other is being **read from**, and vice versa. It eliminates read-write contention and ensures continuous data streaming.
 
-  1. **`Single_port_buffer_rd_address`**  ➔ Explicit **read and write address control**
-  2. **`Single_port_buffer_rd_enable`**   ➔ Read address increments **internally based on enable signal**
-
-* Implements **single-port RAM interface**
-
-* Supports configurable **data width** and **buffer depth**
-
-* Targets **M20K BRAM** inference in Quartus
-
-* Synchronous **read/write** design
-
-* Ideal for buffering **real and imaginary** data pairs (e.g., OFDM, FFT, DFT)
+### ✅ When to Use:
+- In high-throughput systems like **FFT**, **DFT**, **OFDM modulation**
+- For **streaming applications** where one packet is written while another is processed
+- When the **write and read clocks are the same**
 
 ---
+
+## 1️⃣ Top Module: `PING_PONG`
+
+### 💡 Description
+
+This module switches between **two single-port RAMs** (Buffer A and Buffer B) using select lines.
+
+- `wr_select_line`: controls **which RAM receives writes**
+- `rd_select_line`: controls **which RAM sends out data**
+- RAMs are instantiated using `Single_port_buffer` (read-address based)
+
+### 🔧 Parameters
+
+| Parameter       | Description                       | Default           |
+|----------------|-----------------------------------|-------------------|
+| `dw`           | Data width                        | 56                |
+| `buffer_depth` | Entries in each buffer            | 1440              |
+| `Add_width`    | Address width (`$clog2(depth)`)   | `$clog2(1440)`    |
+
+> 56 bits usually encode 28-bit real + 28-bit imaginary data.
+
+---
+
+### 🧩 Ports
+
+| Port           | Dir   | Width        | Description                                    |
+|----------------|-------|--------------|------------------------------------------------|
+| `clk`          | In    | 1            | System clock                                   |
+| `rst`          | In    | 1            | Reset signal                                   |
+| `wr_select_line` | In  | 1            | Selects which buffer receives the write        |
+| `rd_select_line` | In  | 1            | Selects which buffer outputs the data          |
+| `wr_address`   | In    | `Add_width`  | Address for writing                            |
+| `wr_data`      | In    | `dw`         | Input data                                     |
+| `wr_en`        | In    | 1            | Write enable                                   |
+| `rd_en`        | In    | 1            | Read enable                                    |
+| `rd_data`      | Out   | `dw`         | Output read data                               |
+| `rd_address`   | Out   | `Add_width`  | Output read address                            |
+
+---
+
+### 🔍 How It Works
+
+```
+- DUT_A and DUT_B are two RAM blocks (instantiated from Single_port_buffer)
+- wr_select_line chooses which DUT gets write
+- rd_select_line chooses which DUT sends data
+- rd_data and rd_address are muxed between DUT_A and DUT_B based on rd_select_line
+```
+
+📌 **Internally uses `rd_en_reg` to delay data muxing by 1 cycle to match BRAM read latency**
+
+---
+
+### 🧠 Flexibility in RAM Design
+
+You can choose which internal RAM to instantiate in PING_PONG:
+- Use `Single_port_buffer_rd_address` if you want to **control read address externally**
+- Use `Single_port_buffer_rd_enable` if you want **auto-incrementing read address**
+
+Update instantiations as needed inside `PING_PONG`.
+
+---
+
+
+# 2. 💡 Module: `Single_port_buffer_rd_address`
+
+### 🔹 Purpose
+
+This module allows full control over **read and write addresses** externally. Suitable for designs where read logic is FSM-controlled.
+
 
 ## ⚒️ Parameters (Common to Both Modules)
 
@@ -32,16 +108,6 @@ This module implements a **synchronous single-port memory buffer** in Verilog, d
 | `dw`           | Data width per entry                   | 56             |
 | `buffer_depth` | Total entries in the buffer            | 1440           |
 | `Add_width`    | Address width (auto from buffer depth) | `$clog2(1440)` |
-
-> Typically, `dw = 56` is used for 28-bit real + 28-bit imaginary data.
-
----
-
-# 1. 💡 Module: `Single_port_buffer_rd_address`
-
-### 🔹 Purpose
-
-This module allows full control over **read and write addresses** externally. Suitable for designs where read logic is FSM-controlled.
 
 ### 🔌 Port Descriptions
 
@@ -58,8 +124,17 @@ This module allows full control over **read and write addresses** externally. Su
 
 ---
 
-### 🧠 Memory Inference
+```verilog
+(* ramstyle = "M20K" *) logic [dw-1:0] bram [buffer_depth];
 
+always_ff @(posedge clk) begin
+    if (wr_en) bram[wr_address] <= wr_data;
+    if (rd_en) rd_data <= bram[rd_address]; // Synchronous read
+end
+```
+
+### 🧠 Memory Inference
+### 💡 Key Logic
 ```verilog
 (* ramstyle = "M20K" *) logic [dw-1:0] bram [buffer_depth];
 ```
@@ -76,7 +151,7 @@ This instructs Quartus to use **M20K block RAMs** instead of LUT-based memory.
 
 ---
 
-# 2. 🌌 Module: `Single_port_buffer_rd_enable`
+# 3. 🌌 Module: `Single_port_buffer_rd_enable`
 
 ### 🔹 Purpose
 
@@ -100,6 +175,17 @@ In this variant, the **read address is internal** and updates automatically when
 
 ---
 
+### 💡 Key Logic
+
+```verilog
+always_ff @(posedge clk) begin
+    if (wr_en) bram[wr_address] <= wr_data;
+    if (rd_en) rd_address <= rd_address + 1;
+end
+
+assign rd_data = bram[rd_address];
+```
+
 ### 🔄 Internal Read Address Update
 
 ```verilog
@@ -118,24 +204,30 @@ assign rd_data = bram[rd_address];
 * Combinational read using current `rd_address`
 * No explicit read pipeline delay, but actual hardware may still infer latency (Quartus might insert a register)
 
----
 
-## 📉 When to Use Which?
+## 🧠 Quartus BRAM Inference
 
-| Use Case                                 | Recommended Module              |
-| ---------------------------------------- | ------------------------------- |
-| Controlled read/write access (FSM/logic) | `Single_port_buffer_rd_address` |
-| Streaming read with only enable required | `Single_port_buffer_rd_enable`  |
+All modules use:
 
----
+```verilog
+(* ramstyle = "M20K" *) logic [dw-1:0] bram [buffer_depth];
+```
 
-## 📄 Licensing
-
-MIT License — free to use, modify, and distribute.
+This guarantees Quartus will map memory to **M20K block RAMs** instead of LUTs.
 
 ---
 
-## 🌐 Author
 
-**Designed by Bhargav Ram for RTL-based buffer control**
+## 📄 License
+
+MIT — Free to use, modify, and distribute.
+
+---
+
+## 🙋‍♂️ Author
+
+**Bhargav Ram** — RTL Design Engineer
+
+---
+
 
