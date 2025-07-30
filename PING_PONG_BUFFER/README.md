@@ -1,4 +1,4 @@
-                                                              # 📦 Single Port Buffer Module (Verilog)
+# 📦 Single Port Buffer Module (Verilog)
 - **Single_port_buffer_rd_address** ==> this module gives a particular write address and a particular read_address and also enable
 - **Single_port_buffer_rd_enable**  ==> this module gives a particular write address and gives rd_enable signal and based on this rd_address gets updated on its own and gives the data
 
