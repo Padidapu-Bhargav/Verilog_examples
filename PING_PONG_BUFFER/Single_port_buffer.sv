@@ -1,5 +1,6 @@
-// working and invoking BRAMS
-// 
+// check README>md file for clear understanding
+
+
 module Single_port_buffer_rd_address #(
 	
     parameter dw = 56, // 28 bit real and 28 bit imaginary
@@ -36,7 +37,11 @@ end
 endmodule
 
 
-// working for output rd_Addres
+
+
+
+
+// 
 module Single_port_buffer_rd_enable #(
 	
     parameter dw = 56, // 28 bit real and 28 bit imaginary
@@ -44,8 +49,8 @@ module Single_port_buffer_rd_enable #(
     parameter Add_width = $clog2(buffer_depth)
 )
     (
-    input 											clk,
-    input 											rst,
+    input 					clk,
+    input 					rst,
 
     input   logic [Add_width-1       :           0] wr_address,
     input   logic [dw-1              :           0] wr_data,
@@ -59,14 +64,15 @@ module Single_port_buffer_rd_enable #(
    
 (* ramstyle = "M20K" *) logic [dw-1:0] bram [buffer_depth];
 
-// writing data
+// writing data and read address is updated based on the rd_en
 always_ff @( posedge clk  ) begin : write_data_logic
     if (wr_en) begin
         bram[wr_address]	<= wr_data;
     end
-	 if(rd_en) rd_address <= rd_address + 1;
+    if(rd_en) rd_address <= rd_address + 1;
 end
 
+// combinatinallly drives the data from BRAM based on the address
 assign rd_data = bram[rd_address];
 
 endmodule
